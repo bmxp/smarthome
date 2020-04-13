@@ -6,8 +6,10 @@ jobs:
       - python: 3.6
       - python: 3.7
         dist: xenial
-      - python: 3.8
-        dist: xenial
+
+# need to allow ruamel.yaml higher than 0.15.74 to support Python 3.8
+#      - python: 3.8
+#        dist: xenial
 
 env:
     - REPOSITORY_ORIGIN=smarthome

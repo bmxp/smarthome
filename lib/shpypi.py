@@ -69,6 +69,7 @@ class Shpypi:
 
         self.sh = sh
         if sh is None:
+            self.logger.debug("SmartHomeNG is None")
             if base:
                 self._sh_dir = base
                 self._error = False
@@ -76,6 +77,7 @@ class Shpypi:
             self._sh_dir = sh.get_basedir()    # anders bestimmen für tools/build_requirements.py
 
             self._error = False
+        self.logger.debug("SmartHomeNG is using '{}' as base directory".format(self._sh_dir))
         return
 
 
@@ -1153,13 +1155,17 @@ class Requirements_files():
 
         filename = 'requirements' + os.sep + selection + '.txt'
         complete_filename = self.sh_basedir + os.sep + filename
-        with open(complete_filename, 'w') as outfile:
-            self._write_header(outfile, filename)
+        
+        if len(packagelist_consolidated) > 0:
+            with open(complete_filename, 'w') as outfile:
+                self._write_header(outfile, filename)
 
-            for pkg in packagelist_consolidated:
-                for req in pkg['used_by']:
-                    outfile.write('# {}\n'.format(req))
-                outfile.write('{}\n\n'.format(pkg['requests']))
+                for pkg in packagelist_consolidated:
+                    for req in pkg['used_by']:
+                        outfile.write('# {}\n'.format(req))
+                    outfile.write('{}\n\n'.format(pkg['requests']))
+        else:
+            self.logger.error("Req_files: _consolidate_requirements: packagelist_consolidated is empty".format())
 
         return complete_filename
 
