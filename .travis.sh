@@ -55,16 +55,31 @@ echo -e "travis_fold:start:Checkout\nChecking out repositories with $REPOSITORY_
 cd $TRAVIS_BUILD_DIR/..
 
 # Check out other repositories with develop version
-for REPO in $REPOSITORIES ; do
-  if [ "$REPO" != "$REPOSITORY_ORIGIN" ] ; then
-    echo "Checking out $REPO ..."
-    #git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
-    git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
-    cd $REPO
-    git checkout $REPOSITORY_BRANCH
-    cd ..
-  fi
-done
+##for REPO in $REPOSITORIES ; do
+##  if [ "$REPO" != "$REPOSITORY_ORIGIN" ] ; then
+##    echo "Checking out $REPO ..."
+##    #git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
+##    git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
+##    cd $REPO
+##    git checkout $REPOSITORY_BRANCH
+##    cd ..
+##  fi
+##done
+REPO = smarthome
+echo "Checking out $REPO ..."
+git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
+cd $REPO
+git checkout $REPOSITORY_BRANCH
+echo "Checking out $REPO ... done"
+
+REPO = plugins
+echo "Checking out $REPO ..."
+git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
+echo "Checking out $REPO ... done"
+cd $REPO
+git checkout $REPOSITORY_BRANCH
+echo "Checking out $REPO ... done"
+cd ..
 
 echo "travis_fold:end:Checkout"
 
@@ -74,19 +89,21 @@ echo "travis_fold:end:Checkout"
 
 echo -e "travis_fold:start:Links\nCreating symlinks"
 
-# Create symlinks in core repository
-for LINK in $LINKS ; do
-  TARGET=$(dirname "$LINK")
-  TARGET_REPO=$(dirname "$TARGET")
-  TARGET_DIR=$(basename "$TARGET")
-  SOURCE_REPO=$(basename "$LINK")
+# LINKS="smarthome/plugins/plugins"
 
-  echo "Create link from $SOURCE_REPO to $TARGET_REPO/$TARGET_DIR ..."
-  cd $TARGET_REPO
-  rm -rf $TARGET_DIR
-  ln -s ../$SOURCE_REPO $TARGET_DIR
-  cd ..
-done
+# Create symlinks in core repository
+#for LINK in $LINKS ; do
+#  TARGET=$(dirname "$LINK")             # TARGET = smarthome/plugins
+#  TARGET_REPO=$(dirname "$TARGET")      # TARGET_REPO = smarthome
+#  TARGET_DIR=$(basename "$TARGET")      # TARGET_DIR = plugins
+#  SOURCE_REPO=$(basename "$LINK")       # SOURCE_REPO = plugins
+#
+#  echo "Create link from $SOURCE_REPO to $TARGET_REPO/$TARGET_DIR ..."
+#  cd $TARGET_REPO                       # cd smarthome
+#  rm -rf $TARGET_DIR                    # rm -rf plugins
+#  ln -s ../$SOURCE_REPO $TARGET_DIR     # symbolic link from plugins to ../plugins
+#  cd ..
+#done
 
 echo "travis_fold:end:Links"
 
