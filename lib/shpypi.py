@@ -1003,6 +1003,7 @@ class Requirements_files():
                 for filename in fnmatch.filter(filenames, 'requirements.txt'):
                     # print("level = {}: root = {}".format(level, root))
                     file_list.append(os.path.join(root, filename))
+                    self.logger.debug("found '{}'".format(os.path.join(root, filename)))
         self.logger.debug("_get_filelist found '{}'".format(file_list))
         return file_list
 
