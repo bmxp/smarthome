@@ -94,8 +94,8 @@ echo "travis_fold:end:Links"
 echo -e "travis_fold:start:Suite\nRunning suite"
 
 cd smarthome
-#tox || exit 1
-echo "would run tox now"
+#echo "would run tox now"
+tox || exit 1
 cd ..
 
 echo "travis_fold:end:Suite"
