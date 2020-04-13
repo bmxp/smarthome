@@ -31,14 +31,19 @@ LINKS="smarthome/plugins/plugins"
 
 # Get the current repository which is processed
 REPOSITORY="$(basename $TRAVIS_REPO_SLUG)"
+OWNER_NAME="$(dirname  $TRAVIS_REPO_SLUG)"
 REPOSITORY_ORIGIN="$REPOSITORY_ORIGIN"
 
 # Find out on which branch to work
-if [ "$TRAVIS_BRANCH" = "master" ] ; then
-  REPOSITORY_BRANCH="master"
-else
-  REPOSITORY_BRANCH="develop"
-fi
+#if [ "$TRAVIS_BRANCH" = "master" ] ; then
+#  REPOSITORY_BRANCH="master"
+#else
+#  REPOSITORY_BRANCH="develop"
+#fi
+
+# we might have more branches than develop or master so use the branch
+# that Travis has preset by gitub
+REPOSITORY_BRANCH=$TRAVIS_BRANCH
 
 
 #######################################################################
@@ -53,8 +58,8 @@ cd $TRAVIS_BUILD_DIR/..
 for REPO in $REPOSITORIES ; do
   if [ "$REPO" != "$REPOSITORY_ORIGIN" ] ; then
     echo "Checking out $REPO ..."
-    #git clone https://github.com/smarthomeNG/$REPO.git $REPO
-    git clone https://github.com/bmxp/$REPO.git $REPO
+    #git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
+    git clone https://github.com/$OWNER_NAME/$REPO.git $REPO
     cd $REPO
     git checkout $REPOSITORY_BRANCH
     cd ..
