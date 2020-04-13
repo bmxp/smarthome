@@ -39,14 +39,31 @@ import sys
 sh_basedir = os.sep.join(os.path.realpath(__file__).split(os.sep)[:-2])
 sys.path.insert(0, sh_basedir)
 
+program_name = sys.argv[0]
+arguments = sys.argv[1:]
+if "-debug_tox" in arguments:
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger('build_requirements')
+    logger.setLevel(logging.DEBUG)
+    logger.debug("sys.path = {}".format(sys.path))
+    # create file handler which logs even debug messages
+    #fh = logging.FileHandler('spam.log')
+    #fh.setLevel(logging.DEBUG)
+    # create console handler with a higher log level
+    #ch = logging.StreamHandler()
+    #ch.setLevel(logging.DEBUG)
+    # create formatter and add it to the handlers
+    #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    #fh.setFormatter(formatter)
+    #ch.setFormatter(formatter)
+    # add the handlers to the logger
+    #logger.addHandler(fh)
+    #logger.addHandler(ch)
+
 import lib.shpypi as shpypi
 
-
-# ==========================================================================
-
-
 selection = 'all'
-
 
 if not os.path.exists(os.path.join(sh_basedir, 'modules')):
     print ("Directory <shng-root>/modules not found!")
