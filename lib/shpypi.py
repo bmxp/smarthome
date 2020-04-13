@@ -999,6 +999,7 @@ class Requirements_files():
         file_list = []
         for root, dirnames, filenames in os.walk(self.sh_basedir + os.sep + selection):
             level = root.count(os.sep)
+            self.logger.debug("level = {}: root = {}".format(level, root))
             if level < 6:  # don't search for requirements in _pv (previous versions)
                 for filename in fnmatch.filter(filenames, 'requirements.txt'):
                     # print("level = {}: root = {}".format(level, root))
