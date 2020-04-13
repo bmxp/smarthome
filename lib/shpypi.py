@@ -902,6 +902,7 @@ class Requirements_files():
 
         self._conf_plugin_files = []
         self.sh_basedir = os.sep.join(os.path.realpath(__file__).split(os.sep)[:-2])
+        self.logger.debug("Requirements_files is using '{}' as base directory".format(self._sh_dir))
         return
 
 
@@ -994,7 +995,7 @@ class Requirements_files():
 
 
     def _get_filelist(self, selection):
-
+        self.logger.debug("_get_filelist for '{}'".format(selection))
         file_list = []
         for root, dirnames, filenames in os.walk(self.sh_basedir + os.sep + selection):
             level = root.count(os.sep)
@@ -1002,6 +1003,7 @@ class Requirements_files():
                 for filename in fnmatch.filter(filenames, 'requirements.txt'):
                     # print("level = {}: root = {}".format(level, root))
                     file_list.append(os.path.join(root, filename))
+        self.logger.debug("_get_filelist found '{}'".format(file_list))
         return file_list
 
 
@@ -1190,6 +1192,7 @@ class Requirements_files():
 
         # build list of all packages
         selection = selection.lower()
+        self.logger.debug("create_requirementsfile for '{}'".format(selection))
         self._build_filelists(selection)
 
         requirements = self.__read_requirementfiles()
