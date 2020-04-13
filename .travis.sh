@@ -53,7 +53,8 @@ cd $TRAVIS_BUILD_DIR/..
 for REPO in $REPOSITORIES ; do
   if [ "$REPO" != "$REPOSITORY_ORIGIN" ] ; then
     echo "Checking out $REPO ..."
-    git clone https://github.com/smarthomeNG/$REPO.git $REPO
+    #git clone https://github.com/smarthomeNG/$REPO.git $REPO
+    git clone https://github.com/bmxp/$REPO.git $REPO
     cd $REPO
     git checkout $REPOSITORY_BRANCH
     cd ..
