@@ -902,7 +902,7 @@ class Requirements_files():
 
         self._conf_plugin_files = []
         self.sh_basedir = os.sep.join(os.path.realpath(__file__).split(os.sep)[:-2])
-        self.logger.debug("Requirements_files is using '{}' as base directory".format(self._sh_dir))
+        self.logger.debug("Requirements_files is using '{}' as base directory".format(self.sh_basedir))
         return
 
 
