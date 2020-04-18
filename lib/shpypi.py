@@ -995,12 +995,22 @@ class Requirements_files():
 
 
     def _get_filelist(self, selection):
+        """
+        returns a list of files with all paths for a requirements.txt within a 
+        certain selection subpath.
+        Currently selection is one of 'modules', 'lib', 'plugins'
+        When testing with travis the self.sh_basedir will be something like "/home/travis/build/<repo owner>/smarthome"
+        On a native Linux without specialities this is normally "/usr/local/smarthome"
+        When inspecting the plugins then all requirements.txt for previous plugin versions should be omitted from the list.
+        The names of previous plugins subdirectories start with "_pv"
+        """
         self.logger.debug("_get_filelist for '{}'".format(selection))
         file_list = []
+        basedir_level = self.sh_basedir.count(os.sep)
         for root, dirnames, filenames in os.walk(self.sh_basedir + os.sep + selection):
             level = root.count(os.sep)
             #self.logger.debug("level = {}: root = {}".format(level, root))
-            if "_pv" not in root:  # don't search for requirements in _pv (previous versions)
+            if (selection == "plugins" and "_pv" not in root) or (level < basedir_level + 3):
                 for filename in fnmatch.filter(filenames, 'requirements.txt'):
                     # print("level = {}: root = {}".format(level, root))
                     file_list.append(os.path.join(root, filename))
