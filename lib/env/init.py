@@ -1,17 +1,16 @@
-
 # lib/env/init.py
 
-sh.env.core.version(sh.version)
-sh.env.core.start(sh.now())
+import psutil
+import socket
 
-namefile = "/proc/sys/kernel/hostname"
-with open(namefile, 'r') as f:
-    hostname = f.read().strip()
-sh.env.system.name(hostname)
+# version of SmartHomeNG and start time
+sh.env.core.version(sh.version, logic.lname)
+sh.env.core.start(shtime.now(), logic.lname)
 
-# system start
-with open("/proc/uptime", 'r') as f:
-    uptime = f.read()
-uptime = int(float(uptime.split()[0]))
-start = sh.now() - datetime.timedelta(seconds=uptime)
-sh.env.system.start(start)
+# hostname
+hostname=socket.gethostname()
+sh.env.system.name(hostname, logic.lname)
+
+# operating system start
+start=datetime.datetime.fromtimestamp(psutil.boot_time())
+sh.env.system.start(start, logic.lname)

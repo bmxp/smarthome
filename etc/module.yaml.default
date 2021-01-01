@@ -1,0 +1,13 @@
+%YAML 1.1
+---
+# etc/module.yaml
+http:
+    module_name: http
+    starturl: admin
+
+admin:
+    module_name: admin
+
+#enable, if mqtt protocol is going to be used
+#mqtt:
+#    module_name: mqtt

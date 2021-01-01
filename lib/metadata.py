@@ -1,0 +1,982 @@
+#!/usr/bin/env python3
+# vim: set encoding=utf-8 tabstop=4 softtabstop=4 shiftwidth=4 expandtab
+#########################################################################
+# Copyright 2017-       Martin Sinn                         m.sinn@gmx.de
+#########################################################################
+#  This file is part of SmartHomeNG
+#
+#  SmartHomeNG is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  SmartHomeNG is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with SmartHomeNG  If not, see <http://www.gnu.org/licenses/>.
+#########################################################################
+
+import logging
+import os
+import sys
+import collections
+
+from lib.utils import Utils
+import lib.shyaml as shyaml
+from lib.constants import (YAML_FILE, FOO, META_DATA_TYPES, META_DATA_DEFAULTS)
+
+META_MODULE_PARAMETER_SECTION = 'parameters'
+META_PLUGIN_PARAMETER_SECTION = 'parameters'
+META_PLUGIN_ITEMATTRIBUTE_SECTION = 'item_attributes'
+META_PLUGIN_LOGIC_PARAMETER_SECTION = 'logic_parameters'
+META_PLUGIN_FUNCTION_SECTION = 'plugin_functions'
+
+META_STRUCT_SECTION = 'item_structs'
+#META_DATA_TYPES=['bool', 'int', 'float','num', 'scene', 'str', ['list','list(subtype)'], 'dict', 'ip', 'ipv4', 'ipv6', 'mac', 'knx_ga', 'foo']
+#META_DATA_DEFAULTS={'bool': False, 'int': 0, 'float': 0.0, 'scene': 0, 'str': '', 'list': [], 'dict': {}, 'OrderedDict': {}, 'num': 0, 'scene': 0, 'ip': '0.0.0.0', 'ipv4': '0.0.0.0', 'mac': '00:00:00:00:00:00', 'knx_ga': '', 'foo': None}
+
+
+logger = logging.getLogger(__name__)
+
+class Metadata():
+
+    _version = '?'
+
+
+    def __init__(self, sh, addon_name, addon_type, classpath=''):
+        """
+        Initialzes the metadata for an addon (plugin or module) from the definition file
+
+        :param sh: SmartHomeNG main object
+        :param addon_name:
+        :param addon_type: 'plugin' or 'module'
+        :param classpath:
+        :type sh: object
+        :type addon_name: str
+        :type addon_type: str
+        :type classpath: str
+        """
+        self._sh = sh
+        self._addon_name = addon_name.lower()
+        self._addon_type = addon_type
+
+        self._log_premsg = "{} '{}': ".format(addon_type, self._addon_name)
+
+#        logger.warning(self._log_premsg+"classpath = '{}'".format( classpath ) )
+        if classpath == '':
+            if addon_type == 'plugin':
+                addon_type_dir = 'plugins'
+            elif addon_type == 'module':
+                addon_type_dir = 'modules'
+            else:
+                return
+            self.relative_filename = os.path.join( addon_type_dir, self._addon_name, addon_type+YAML_FILE )
+        else:
+            self.relative_filename = os.path.join( classpath.replace('.', os.sep), addon_type+YAML_FILE )
+#        logger.warning(self._log_premsg+"relative_filename = '{}'".format( self.relative_filename ) )
+
+        # read complete definitions from metadata file
+        filename = os.path.join( self._sh.get_basedir(), self.relative_filename )
+        self.meta = shyaml.yaml_load(filename, ordered=True)
+
+        self.parameters = None
+        self._paramlist = []
+        self.itemdefinitions = None
+        self._itemdeflist = []
+        self.itemstructs = None
+        self._itemstructlist = []
+        self.logic_parameters = None
+        self._logic_paramlist = []
+        self.plugin_functions = None
+        self._plugin_functionlist = []
+
+        if self.meta is not None:
+            # read paramter and item definition sections
+            if self._addon_type == 'module':
+                self.parameters = self.meta.get(META_MODULE_PARAMETER_SECTION)
+                self.itemstructs = self.meta.get(META_STRUCT_SECTION)
+            else:
+                self.parameters = self.meta.get(META_PLUGIN_PARAMETER_SECTION)
+                self.itemdefinitions = self.meta.get(META_PLUGIN_ITEMATTRIBUTE_SECTION)
+                self.itemstructs = self.meta.get(META_STRUCT_SECTION)
+                self.logic_parameters = self.meta.get(META_PLUGIN_LOGIC_PARAMETER_SECTION)
+                self.plugin_functions = self.meta.get(META_PLUGIN_FUNCTION_SECTION)
+
+            # test validity of parameter definition section
+            if self.parameters is not None:
+                if self.parameters == 'NONE':
+                    self.parameters = None
+                else:
+                    self._paramlist = list(self.parameters.keys())
+                    logger.info(self._log_premsg+"Metadata paramlist = '{}'".format( str(self._paramlist) ) )
+            if  self.parameters is not None:
+                self._test_definitions(self._paramlist, self.parameters)
+            else:
+                logger.debug(self._log_premsg+"has no parameter definitions in metadata")
+
+            # test validity of item definition section
+            if self.itemdefinitions is not None:
+                if self.itemdefinitions == 'NONE':
+                    self.itemdefinitions = None
+                else:
+                    self._itemdeflist = list(self.itemdefinitions.keys())
+                    logger.info(self._log_premsg+"Metadata itemdeflist = '{}'".format( str(self._itemdeflist) ) )
+            if  self.itemdefinitions is not None:
+                self._test_definitions(self._itemdeflist, self.itemdefinitions)
+            else:
+                logger.debug(self._log_premsg+"has no item definitions in metadata")
+
+            # test validity of logic-parameter definition section
+            if self.logic_parameters is not None:
+                if self.logic_parameters == 'NONE':
+                    self.logic_parameters = None
+                else:
+                    self._logic_paramlist = list(self.logic_parameters.keys())
+                    logger.info(self._log_premsg+"Metadata logic_paramlist = '{}'".format( str(self._logic_paramlist) ) )
+            if  self.logic_parameters is not None:
+                self._test_definitions(self._logic_paramlist, self.logic_parameters)
+            else:
+                logger.debug(self._log_premsg+"has no logic-parameter definitions in metadata")
+
+            # test validity of plugin-function definition section
+            if self.plugin_functions is not None:
+                if self.plugin_functions == 'NONE':
+                    self.plugin_functions = None
+                else:
+                    self._plugin_functionlist = list(self.plugin_functions.keys())
+                    logger.info(self._log_premsg+"Metadata plugin_functionlist = '{}'".format( str(self._plugin_functionlist) ) )
+            if  self.plugin_functions is not None:
+                # self._test_definitions(self._plugin_functionlist, self.plugin_functions)
+                pass
+                dummy = self.get_plugin_function_defstrings(with_type=False, with_default=False)
+                dummy = self.get_plugin_function_defstrings(with_type=True, with_default=False)
+                dummy = self.get_plugin_function_defstrings(with_type=False, with_default=True)
+                dummy = self.get_plugin_function_defstrings(with_type=True, with_default=True)
+            else:
+                logger.debug(self._log_premsg+"has no plugin-function definitions in metadata")
+
+
+            # test validity of structs definition section
+            if self.itemstructs is not None:
+                if self.itemstructs == 'NONE':
+                    self.itemstructs = None
+                else:
+                    logger.info(self._log_premsg + "Metadata itemstructlist = '{}'".format(self._itemstructlist))
+#                    for struct in self._itemstructlist:
+#                        for i in self.itemstructs[struct]:
+#                            self.itemstructs[struct][i] = dict(self.itemstructs[struct][i])
+#                            for si in self.itemstructs[struct][i]:
+#                                if type(self.itemstructs[struct][i][si]) is collections.OrderedDict:
+#                                    self.itemstructs[struct][i][si] = dict(self.itemstructs[struct][i][si])
+#                        logger.info(self._log_premsg + "Metadata itemstruct '{}' = '{}'".format(struct, dict(self.itemstructs[struct])))
+#            if self.itemstructs is not None:
+##                self._test_definitions(self._itemdeflist, self.itemdefinitions)
+#                pass
+            else:
+                logger.info(self._log_premsg + "has no item-struct definitions in metadata")
+
+        # Read global metadata for addon (either 'plugin' or 'module'
+        if self.meta is not None:
+            self.addon_metadata = self.meta.get(addon_type)
+        else:
+            self.addon_metadata = None
+
+        return
+
+
+    def get_plugin_function_defstrings(self, with_type=False, with_default=True):
+        """
+        Build the documentation strings of the plugin's functions
+
+        used e.g. for code completion in logic editor
+        """
+
+        docstr_list = []
+        if self.plugin_functions is not None:
+            for f in sorted(self.plugin_functions):
+                fp = ''
+                func_param_yaml = self.plugin_functions[f].get('parameters', None)
+                if func_param_yaml is not None:
+                    for par in func_param_yaml:
+                        if fp != '':
+                            fp += ', '
+                        fp += par
+                        if with_type:
+                            if func_param_yaml[par].get('type', None) != None:
+                                type = str(func_param_yaml[par].get('type', None))
+                                fp += ':' + type
+                        if with_default:
+                            if func_param_yaml[par].get('default', None) != None:
+                                default = str(func_param_yaml[par].get('default', None))
+                                if func_param_yaml[par].get('type', 'foo') == 'str':
+                                    if default == 'None*':
+                                        default = 'None'
+                                    else:
+                                        default = " '" + default + "'"
+                                fp += '=' + default
+
+                docstr_list.append(f + '(' + fp + ')')
+        logger.info(self._log_premsg + "Metadata get_plugin_function_defstrings -> '{}'".format(docstr_list))
+        return docstr_list
+
+
+    def _test_definitions(self, definition_list, definition_dict):
+        """
+        Test parameter or item-attribute definitions for validity
+        """
+        definition_list = list(definition_dict.keys())
+#        logger.warning(self._log_premsg+"Metadata definition_list = '{}'".format( definition_list ) )
+        for definition in definition_list:
+            if definition_dict[definition] is not None:
+                typ = str(definition_dict[definition].get('type', FOO)).lower()
+                # to be implemented: timeframe
+                definition_dict[definition]['listtype'] = [FOO]
+                definition_dict[definition]['listlen'] = 0
+                if definition_dict[definition].get('type', FOO) == 'list':
+                    logger.debug(self._log_premsg+"definition = '{}' of type '{}'".format(definition, str(definition_dict[definition].get('type', FOO)).lower() ) )
+                if not (typ in META_DATA_TYPES):
+                    # test for list with specified datatype
+                    if typ.startswith('list(') and typ.endswith(')'):
+                        logger.debug(self._log_premsg+"definition = '{}' of type '{}'".format(definition, str(definition_dict[definition].get('type', FOO)).lower() ) )
+                        definition_dict[definition]['type'] = 'list'
+                        listparam = typ[5:]
+                        listparam = listparam[:-1].strip().split(',')
+                        if len(listparam) > 0:
+                            if Utils.is_int(listparam[0]):
+                                l = int(listparam[0])
+                                if l < 0:
+                                    l = 0
+                                definition_dict[definition]['listlen'] = l
+                                listparam.pop(0)
+                            if len(listparam) == 0:
+                                listparam = [FOO]
+                        subtyp = ''
+                        if len(listparam) > 0:
+                            listparam2 = []
+                            for i in range(0,len(listparam)):
+                                if listparam[i] in META_DATA_TYPES:
+                                    listparam2.append(listparam[i])
+                                else:
+                                    listparam2.append(FOO)
+                                    logger.error(self._log_premsg+"definition = '{}': Invalid subtype '{}' specified, using '{}' instead".format(definition, listparam[i], FOO))
+                            listparam = listparam2
+
+                        definition_dict[definition]['listtype'] = listparam
+
+                    else:
+                        logger.error(self._log_premsg+"Invalid definition in metadata file '{}': type '{}' for parameter '{}' -> using type '{}' instead".format( self.relative_filename, typ, definition, FOO ) )
+                        definition_dict[definition]['type'] = FOO
+
+                if definition_dict[definition].get('type', FOO) == 'list':
+                    logger.debug(self._log_premsg+"definition = '{}' list of subtype_list = {}, listlen={}".format(definition, definition_dict[definition]['listtype'], definition_dict[definition]['listlen'] ) )
+                else:
+                    logger.debug(self._log_premsg+"definition = '{}' list of listparam = >{}<, listlen={}".format(definition, definition_dict[definition]['listtype'], definition_dict[definition]['listlen'] ) )
+            else:
+                logger.info(self._log_premsg+"definition = '{}'".format( definition ) )
+        return
+
+    def _strip_quotes(self, string):
+        if type(string) is str:
+            string = string.strip()
+            if len(string) >= 2:
+                if string[0] in ['"', "'"]:  # check if string starts with ' or "
+                    if string[0] == string[-1]:  # and end with it
+                        if string.count(string[0]) == 2:  # if they are the only one
+                            string = string[1:-1]  # remove them
+        return string
+
+
+    # ------------------------------------------------------------------------
+    # Methods for global values
+    #
+
+    def get_string(self, key):
+        """
+        Return the value for a global key as a string
+
+        :param key: global key to look up (in section 'plugin' or 'module')
+        :type key: str
+
+        :return: value for the key
+        :rtype: str
+        """
+        if self.addon_metadata == None:
+            return ''
+
+        return self.addon_metadata.get(key, '')
+
+
+    def get_mlstring(self, mlkey):
+        """
+        Return the value for a global multilanguage-key as a string
+
+        It trys to lookup th value for the default language.
+        If the value for the default language is empty, it trys to look up the value for English.
+        If there is no value for the default language and for English, it trys to lookup the value for German.
+
+        :param key: global multilanguage-key to look up (in section 'plugin' or 'module')
+        :type key: str
+
+        :return: value for the key
+        :rtype: str
+        """
+        if self.addon_metadata is None:
+            return ''
+
+        key_dict = self.addon_metadata.get(mlkey)
+        if key_dict is None:
+            return ''
+        try:
+            result = key_dict.get(self._sh.get_defaultlanguage(), '')
+        except:
+            return ''
+        if result == '':
+            result = key_dict.get('en','')
+            if result == '':
+                result = key_dict.get('de','')
+        return result
+
+
+    def get_bool(self, key):
+        """
+        Return the value for a global key as a bool
+
+        :param key: global key to look up (in section 'plugin' or 'module')
+        :type key: str
+
+        :return: value for the key
+        :rtype: bool
+        """
+        if self.addon_metadata is None:
+            return False
+
+        return Utils.to_bool(self.addon_metadata.get(key, ''))
+
+
+    def test_shngcompatibility(self):
+        """
+        Test if the actual running version of SmartHomeNG is in the range of supported versions for this addon (module/plugin)
+
+        :return: True if the SmartHomeNG version is in the supported range
+        :rtype: bool
+        """
+        l = str(self._sh.version).split('.')
+        shng_version = l[0]+'.'+l[1]
+        if len(l) > 2:
+            shng_version += '.'+l[2]
+
+        l = str(self.get_string('sh_minversion')).split('.')
+        min_shngversion = l[0]
+        if len(l) > 1:
+            min_shngversion += '.'+l[1]
+        if len(l) > 2:
+            min_shngversion += '.'+l[2]
+
+        l = str(self.get_string('sh_maxversion')).split('.')
+        max_shngversion = l[0]
+        if len(l) > 1:
+            max_shngversion += '.'+l[1]
+        if len(l) > 2:
+            max_shngversion += '.'+l[2]
+
+        mod_version = self.get_string('version')
+
+        if min_shngversion != '':
+            if min_shngversion > shng_version:
+                logger.error("{0} '{1}': The version {3} of SmartHomeNG is too old for this {0}. It requires at least version v{2}. The {0} was not loaded.".format(self._addon_type, self._addon_name, min_shngversion, shng_version))
+                return False
+        if max_shngversion != '':
+            if max_shngversion < shng_version:
+                logger.error("{0} '{1}': The version {3} of SmartHomeNG is too new for this {0}. It requires a version up to v{2}. The {0} was not loaded.".format(self._addon_type, self._addon_name, max_shngversion, shng_version))
+                return False
+        return True
+
+
+    def test_pythoncompatibility(self):
+        """
+        Test if the actual running version of Python is in the range of supported versions for this addon (module/plugin)
+
+        :return: True if the Python version is in the supported range
+        :rtype: bool
+        """
+        l = sys.version_info
+        py_version = str(l[0])+'.'+str(l[1])
+
+        l = str(self.get_string('py_minversion')).split('.')
+        min_pyversion = l[0]
+        if len(l) > 1:
+            min_pyversion += '.'+l[1]
+        l = str(self.get_string('py_maxversion')).split('.')
+        max_pyversion = l[0]
+        if len(l) > 1:
+            max_pyversion += '.'+l[1]
+        mod_version = self.get_string('version')
+
+        if min_pyversion != '':
+            if min_pyversion > py_version:
+                logger.error("{0} '{1}': The Python version {3} is too old for this {0}. It requires at least version v{2}. The {0} was not loaded.".format(self._addon_type, self._addon_name, min_pyversion, py_version))
+                return False
+        if max_pyversion != '':
+            if max_pyversion < py_version:
+                logger.error("{0} '{1}': The Python version {3} is too new for this {0}. It requires a version up to v{2}. The {0} was not loaded.".format(self._addon_type, self._addon_name, max_pyversion, py_version))
+                return False
+        return True
+
+
+    def get_version(self):
+        """
+        Returns the version of the addon
+
+        If test_version has been called before, the code_version is taken into account,
+        otherwise the version of the metadata-file is returned
+
+        :return: version
+        :rtype: str
+        """
+        if self._version == '?':
+            self._version = self.get_string('version')
+        return self._version
+
+
+    def test_version(self, code_version):
+        """
+        Tests if the loaded Python code has a version set and compares it to the metadata version.
+
+        :param code_version: version of the python code
+        :type code_version: str
+
+        :return: True: version numbers match, or Python code has no version
+        :rtype: bool
+        """
+        self._version = self.get_string('version')
+        if code_version is None:
+            logger.info("{} '{}' version not defined in Python code, metadata version is {}".format(self._addon_type, self._addon_name, self._version))
+            return True
+        else:
+            if 2 > code_version.count('.') > 4:
+                logger.warning(
+                    "{} '{}' code version not compliant to plugin version schemas x.x.x or x.x.x.x ".format(
+                        self._addon_type, self._addon_name))
+            if self._version == '':
+                logger.info("{} '{}' metadata contains no version number".format(self._addon_type, self._addon_name))
+                self._version = code_version
+            else:
+                if 2 > str(self._version).count('.') < 4:
+                    logger.warning(
+                        "{} '{}' metadata version not compliant to plugin version schemas x.x.x or x.x.x.x ".format(
+                            self._addon_type, self._addon_name))
+                if str(code_version) != str(self._version):
+                    logger.error("{} '{}' version differs between Python code ({}) and metadata ({})".format(self._addon_type, self._addon_name, str(code_version), self._version))
+                    return False
+            return True
+
+
+    # ------------------------------------------------------------------------
+    # Methods for parameter checking
+    #
+
+    def _test_valuetype(self, typ, subtype, value):
+        """
+        Returns True, if the value can be converted to the specified type
+        """
+#        logger.warning(self._log_premsg+"_test_valuetype-list: typ={}, subtype={}, value={}".format(typ, subtype, value))
+        if typ == 'bool':
+            return Utils.to_bool(value, default='?') != '?'
+        elif typ == 'int':
+            return Utils.is_int(value)
+        elif typ in ['float','num']:
+            return Utils.is_float(value)
+        elif typ == 'scene':
+            if Utils.is_int(value):
+                return (int(value) >= 0) and (int(value) < 256)
+            else:
+                return False
+        elif typ in ['str','password']:
+            return True     # Everything can be converted to a string
+        elif typ == 'list':
+            if subtype != '' and subtype != FOO:
+                result = True
+                if isinstance(value, list):
+                    for i in range(0, len(value)):
+                        if i < len(subtype):
+                            sub = subtype[i]
+                        else:
+                            sub = subtype[len(subtype)-1]
+                        if not self._test_valuetype(sub, '', value[i]):
+                            result = False
+#                            logger.warning("_test_valuetype: value[{}] = {}, sub = {}, result = False".format(i, value[i], sub))
+#                    logger.warning("_test_valuetype: value = {}, type(value) = {}, typ = {}, subtype = {}".format(value, type(value), typ, subtype))
+                return result
+            return (type(value) is list)
+        elif typ == 'dict':
+            return (type(value) is dict)
+        elif typ == 'ip':
+            if Utils.is_ipv4(value):
+                return True
+            if Utils.is_ipv6(value):
+                return True
+            return Utils.is_hostname(value)
+        elif typ == 'ipv4':
+            return Utils.is_ipv4(value)
+        elif typ == 'ipv6':
+            return Utils.is_ipv6(value)
+        elif typ == 'mac':
+            return Utils.is_mac(value)
+        elif typ == 'knx_ga':
+            return Utils.is_knx_groupaddress(value)
+        elif typ == FOO:
+            return True
+
+
+    def _test_value(self, param, value):
+        """
+        Returns True, if the value can be converted to specified type
+        """
+        if param in self._paramlist:
+            typ = self.get_parameter_type(param)
+            subtype = self.get_parameter_subtype(param)
+#            if subtype != '':
+#                logger.warning("_test_value '{}': before _test_valuetype(): typ = {}, subtype = {}, value = {}".format(param, typ, subtype, value))
+            return self._test_valuetype(typ, subtype, value)
+        return False
+
+
+    def _expand_listvalues(self, param, value):
+        """
+        If a parameter is defined as a list, but the value is of a basic datatype,
+        value is expanded to a list. In all other cases, the value is returned nuchanged
+        """
+        result = value
+        if param in self._paramlist:
+            typ = self.get_parameter_type(param)
+            if (typ == 'list') and (not isinstance(value, list)):
+                result = Utils.string_to_list(value)
+#            if (typ == 'list'):
+#                logger.warning(self._log_premsg+"_expand_listvalues: value = >{}<, type(value) = >{}<, result = >{}<, type(result) = >{}<".format(value, type(value), result, type(result)))
+        return result
+
+
+    def _convert_valuetotype(self, typ, value):
+        """
+        Returns the value converted to the parameters type
+        """
+        if typ == 'bool':
+            result = Utils.to_bool(value)
+        elif typ in ['int','scene']:
+            result = int(value)
+        elif typ in ['float','num']:
+            result = float(value)
+        elif typ in ['str','password']:
+            result = str(value)
+        elif typ == 'list':
+            if isinstance(value, list):
+                result = value
+            else:
+                result = [value]
+        elif typ == 'dict':
+            result = dict(value)
+        elif typ in ['ip', 'ipv4', 'ipv6', 'mac']:
+            result = str(value)
+        elif typ in ['knx_ga']:
+            result = str(value)
+        elif typ == FOO:
+            result = value
+        else:
+            logger.error(self._log_premsg+"unhandled type {}".format(typ))
+        return result
+
+
+    def _convert_value(self, param, value, is_default=False):
+        """
+        Returns the value converted to the parameters type
+        """
+        result = False
+        if param in self._paramlist:
+            typ = self.get_parameter_type(param)
+            result = self._convert_valuetotype(typ, value)
+
+            orig = result
+            result = self._test_validity(param, result, is_default)
+            if result != orig:
+                # Für non-default Prüfung nur Warning
+                if is_default:
+                    logger.error(self._log_premsg+"Invalid default '{}' in metadata file '{}' for parameter '{}' -> using '{}' instead".format( orig, self.relative_filename, param, result ) )
+                else:
+                    logger.warning(self._log_premsg+"Invalid value '{}' in plugin configuration file for parameter '{}' -> using '{}' instead".format( orig, param, result ) )
+        return result
+
+#  plugin 'hue': Invalid default '2' in metadata file 'plugins/hue/plugin.yaml' for parameter 'cycle_lamps' -> using '10' instead
+
+
+
+    def _test_validity(self, param, value, is_default=False):
+        """
+        Checks the value against a list of valid values.
+        If valid, it returns the value.
+        Otherwise it returns the first entry of the list of valid values.
+        """
+        result = value
+        if self.parameters[param] != None:
+            if self.parameters[param].get('type') in ['int', 'float', 'num', 'scene']:
+                valid_min = self.parameters[param].get('valid_min')
+                if valid_min != None:
+                    if self._test_value(param, valid_min):
+                        if result < self._convert_valuetotype(self.get_parameter_type(param), valid_min):
+                            if is_default == False:
+#                                result = self.get_parameter_defaultvalue(param)   # instead of valid_min
+                                result = valid_min
+                            else:
+                                result = valid_min
+                valid_max = self.parameters[param].get('valid_max')
+                if valid_max != None:
+                    if self._test_value(param, valid_max):
+                        if result > self._convert_valuetotype(self.get_parameter_type(param), valid_max):
+                            if is_default == False:
+#                                result = self.get_parameter_defaultvalue(param)   # instead of valid_max
+                                result = valid_max
+                            else:
+                                result = valid_max
+            elif self.parameters[param].get('type') in ['list']:
+                 if self.parameters[param]['listlen'] > 0:
+                     if self.parameters[param]['listlen'] != len(value):
+                        logger.warning(self._log_premsg+"Invalid value '{}' in plugin configuration file for parameter '{}' -> length of list is not {}".format( value, param, self.parameters[param]['listlen'] ) )
+                        while len(value) < self.parameters[param]['listlen']:
+                            value.append('')
+                        result = value
+
+        if self.parameters[param] is None:
+            logger.warning(self._log_premsg+"_test_validity: param {}".format(param))
+        else:
+            valid_list = self.parameters[param].get('valid_list')
+            if (valid_list is None) or (len(valid_list) == 0):
+                pass
+            else:
+                if result in valid_list:
+                    pass
+                else:
+                    result = valid_list[0]
+        return result
+
+    def _get_default_if_none(self, typ):
+        """
+        Returns the default value for  datatype.
+        It is used, if no default value is defined for a parameter.
+        """
+        return META_DATA_DEFAULTS.get(typ, None)
+
+
+    # ------------------------------------------------------------------------
+    # Methods for accessing parameter / item definition definitions
+    #
+
+    def get_parameterlist(self):
+        """
+        Returns the list of parameter names
+
+        :return: List of strings with parameter names
+        :rtype: list of str
+        """
+        return self._paramlist
+
+
+    def get_itemdefinitionlist(self):
+        """
+        Returns the list of item attribute definitions
+
+        :return: List of strings with item attribute names
+        :rtype: list of str
+        """
+        return self._itemdeflist
+
+
+    def _get_definition_type(self, definition, definitions):
+        """
+        Returns the datatype of a parameter
+
+        If the defined datatype is 'foo', None is returned
+
+        :param param: Name of the parameter
+        :type param: str
+
+        :return: datatype of the parameter
+        :rtype: str
+        """
+        if definitions is None:
+            return FOO
+        if definitions[definition] is None:
+            return FOO
+        return str(definitions[definition].get('type', FOO)).lower()
+
+    def get_parameter_type(self, param):
+        """
+        Returns the datatype of a parameter
+        """
+        return self._get_definition_type(param, self.parameters)
+
+    def get_itemdefinition_type(self, definition):
+        """
+        Returns the datatype of an item attribute definition
+        """
+        return self._get_definition_type(definition, self.itemdefinitions)
+
+
+    def _get_definition_subtype(self, definition, definitions):
+        """
+        Returns the subtype of a parameter
+
+        If the defined datatype is 'foo', None is returned
+        If no subtype is defined (or definable), an empty string is returned
+
+        :param param: Name of the parameter
+        :type param: str
+
+        :return: subtype of the parameter
+        :rtype: str
+        """
+        if definitions is None:
+            return FOO
+        if definitions[definition] is None:
+            return FOO
+        result = str(definitions[definition].get('type', FOO)).lower()
+        sub = ''
+        if result == 'list':
+            sub =  definitions[definition].get('listtype', ['?'])
+        return sub
+
+    def get_parameter_subtype(self, param):
+        """
+        Returns the subtype of a parameter
+        """
+        return self._get_definition_subtype(param, self.parameters)
+
+    def get_itemdefinition_subtype(self, definition):
+        """
+        Returns the subtype of an item attribute definition
+        """
+        return self._get_definition_subtype(definition, self.itemdefinitions)
+
+
+    def _get_definition_listlen(self, definition, definitions):
+        """
+        Returns the len of a parameter of type list of a parameter
+
+        :param param: Name of the parameter
+        :type param: str
+
+        :return: subtype of the parameter
+        :rtype: str or None
+        """
+        if definitions is None:
+            return FOO
+        if definitions[definition] is None:
+            return FOO
+        result = str(definitions.get('type', FOO)).lower()
+        llen = 0
+        if result == 'list':
+            llen =  definitions.get('listlen', ['?'])
+        return llen
+
+    def get_parameter_listlen(self, param):
+        """
+        Returns the len of a parameter of type list of a parameter
+        """
+        return self.get_definition_listlen(param, self.parameters)
+
+    def get_itemdefinition_listlen(self, definition):
+        """
+        Returns the len of a parameter of type list of an item attribute definition
+        """
+        return self.get_definition_listlen(definition, self.itemdefinitions)
+
+
+    def _get_definition_type_with_subtype(self, definition, definitions):
+        """
+        Returns the datatype of a parameter with subtype (if subtype exists)
+
+        If the defined datatype is 'foo', None is returned
+
+        Subtypes are returnd for parameter type 'list'
+
+        :param param: Name of the parameter
+        :type param: str
+
+        :return: datatype with subtype of the parameter
+        :rtype: str
+        """
+        if definitions is None:
+            return FOO
+        if definitions[definition] is None:
+            return FOO
+        result = self._get_definition_type(definition, definitions)
+        sub = self._get_definition_subtype(definition, definitions)
+        if sub != '':
+            llen = self._get_definition_listlen(definition, definitions)
+            if llen > 0:
+                sub = str(llen)+','+ str.join(',', sub)
+            else:
+                sub = str.join(',', sub)
+            result = result+'(' + sub + ')'
+        return result
+
+    def get_parameter_type_with_subtype(self, param):
+        """
+        Returns the datatype of a parameter with subtype (if subtype exists)
+        """
+        return self._get_definition_type_with_subtype(param, self.parameters)
+
+    def get_itemdefinition_type_with_subtype(self, definition):
+        """
+        Returns the datatype of an item attribute definition with subtype (if subtype exists)
+        """
+        return self._get_definition_type_with_subtype(definition, self.itemdefinitions)
+
+    def _get_definition_defaultvalue(self, definition, definitions, definitionlist):
+        """
+        Returns the default value for the parameter
+
+        If no default value is specified for the parameter, the default value for the datatype
+        of the parameter is returned.
+
+        If the parameter is not defined, None is returned
+
+        :param param: Name of the parameter
+        :type param: str
+
+        :return: Default value
+        :rtype: str or None
+        """
+        value = None
+        if definition in definitionlist:
+            if self.parameters[definition] is not None:
+                if self._get_definition_type(definition, definitions) == 'dict':
+                    if definitions[definition].get('default') is not None:
+                        value = dict(definitions[definition].get('default'))
+                else:
+                    value = definitions[definition].get('default')
+                typ = self._get_definition_type(definition, definitions)
+                if value == 'None*':
+                    logger.info("_get_definition_defaultvalue: default value is 'None*' -> None")
+                    value = None
+                else:
+                    if value is None:
+                        value = self._get_default_if_none(typ)
+                    value = self._expand_listvalues(definition, value)
+                    if not self._test_value(definition, value):
+                        # Für non-default Prüfung nur Warning
+                        logger.error(self._log_premsg+"Invalid data for type '{}' in metadata file '{}': default '{}' for parameter '{}' -> using '{}' instead".format( definitions[definition].get('type'), self.relative_filename, value, definition, self._get_default_if_none(typ) ) )
+                        value = None
+                    if value is None:
+                        value = self._get_default_if_none(typ)
+                    value = self._convert_value(definition, value, is_default=True)
+
+                    orig_value = value
+                    value = self._test_validity(definition, value, is_default=True)
+                    if value != orig_value:
+                        # Für non-default Prüfung nur Warning
+                        logger.error(self._log_premsg+"Invalid default '{}' in metadata file '{}' for parameter '{}' -> using '{}' instead".format( orig_value, self.relative_filename, definition, value ) )
+
+        return value
+
+    def get_parameter_defaultvalue(self, param):
+        """
+        Returns the default value for the parameter
+        """
+        return self._get_definition_defaultvalue(param, self.parameters, self._paramlist)
+
+    def get_itemdefinition_defaultvalue(self, definition):
+        """
+        Returns the default value for an item attribute definition
+        """
+        return self._get_definition_defaultvalue(definition, self.itemdefinitions, self._itemdeflist)
+
+    def _get_definitioninfo(self, definition, key, definitions):
+        """
+        Returns the value for a key of a parameter as a string
+
+        :param parameter: parameter to get the definition info from
+        :param key: key of the definition info
+        :type parameter: str
+        :type key: str
+
+        :return: List of strings with parameter names (None if parameter is not found)
+        :rtype: str
+        """
+        try:
+            result = definitions[definition].get('key')
+        except:
+            result = None
+        return result
+
+    def get_parameterdefinition(self, param, key):
+        """
+        Returns the value for a key of a parameter as a string
+        """
+        return self.__get_definitioninfo(param, key, self.parameters)
+
+    def get_itemdefinition(self, definition, key):
+        """
+        Returns the value for a key of a parameter as a string
+        """
+        return self.__get_definitioninfo(definition, key, self.itemdefinitions)
+
+    def check_parameters(self, args):
+        """
+        Checks the values of a dict of configured parameters.
+
+        Returns a dict with all defined parameters with values and a bool indicating if all parameters are ok (True)
+        or if a mandatory parameter is not configured (False). It returns default values
+        for parameters that have not been configured. The resulting dict contains the
+        values in the the datatype of the parameter definition
+
+        :param args: Configured parameters with the values
+        :type args: dict of parameter-values (values as string)
+
+        :return: All defined parameters with values, Flag if all parameters are ok (no mandatory is missing)
+        :rtype: dict, bool
+        """
+        addon_params = collections.OrderedDict()
+        hide_params = collections.OrderedDict()
+        if self.meta is None:
+            logger.info(self._log_premsg+"No metadata found" )
+            return (addon_params, True, hide_params)
+        if self.parameters is None:
+            logger.info(self._log_premsg+"No parameter definitions found in metadata" )
+            return (addon_params, True, hide_params)
+
+        allparams_ok = True
+        if self._paramlist != []:
+            for param in self._paramlist:
+                value = Utils.strip_quotes(args.get(param))
+                if value is None:
+                    if self.parameters[param] is not None:
+                        if self.parameters[param].get('mandatory'):
+                            logger.error(self._log_premsg+"'{}' is mandatory, but was not found in /etc/{}".format(param, self._addon_type+YAML_FILE))
+                            allparams_ok = False
+                        else:
+                            addon_params[param] = self.get_parameter_defaultvalue(param)
+                            hide_params[param] = Utils.to_bool(self.parameters[param].get('hide'), default=False)
+                            logger.info(self._log_premsg+"value not found in plugin configuration file for parameter '{}' -> using default value '{}' instead".format(param, addon_params[param] ) )
+        #                    logger.warning(self._log_premsg+"'{}' not found in /etc/{}, using default value '{}'".format(param, self._addon_type+YAML_FILE, addon_params[param]))
+                else:
+                    value = self._expand_listvalues(param, value)
+                    if self._test_value(param, value):
+                        addon_params[param] = self._convert_value(param, value)
+
+                        if self.parameters[param] is None:
+                            hide_params[param] = None
+                        else:
+                            hide_params[param] = Utils.to_bool(self.parameters[param].get('hide'), default=False)
+                        logger.debug(self._log_premsg+"Found '{}' with value '{}' in /etc/{}".format(param, value, self._addon_type+YAML_FILE))
+                    else:
+                        if self.parameters[param].get('mandatory') is True:
+                            logger.error(self._log_premsg+"'{}' is mandatory, but no valid value was found in /etc/{}".format(param, self._addon_type+YAML_FILE))
+                            allparams_ok = False
+                        else:
+                            addon_params[param] = self.get_parameter_defaultvalue(param)
+                            hide_params[param] = Utils.to_bool(self.parameters[param].get('hide'), default=False)
+                            logger.error(self._log_premsg+"Found invalid value '{}' for parameter '{}' (type {}) in /etc/{}, using default value '{}' instead".format(value, param, self.parameters[param]['type'], self._addon_type+YAML_FILE, str(addon_params[param])))
+
+        return (addon_params, allparams_ok, hide_params)

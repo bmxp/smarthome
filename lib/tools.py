@@ -3,23 +3,30 @@
 #########################################################################
 # Copyright 2012-2013 Marcus Popp                          marcus@popp.mx
 #########################################################################
-#  This file is part of SmartHome.py.    http://mknx.github.io/smarthome/
+#  This file is part of SmartHomeNG.    https://github.com/smarthomeNG//
 #
-#  SmartHome.py is free software: you can redistribute it and/or modify
+#  SmartHomeNG is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
 #
-#  SmartHome.py is distributed in the hope that it will be useful,
+#  SmartHomeNG is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
 #
 #  You should have received a copy of the GNU General Public License
-#  along with SmartHome.py.  If not, see <http://www.gnu.org/licenses/>.
+#  along with SmartHomeNG.  If not, see <http://www.gnu.org/licenses/>.
 #########################################################################
 # Anpassungen 2016 Michael Würtenberger
 # Error Item für Verbindungsfehler bei fetch_url
+
+"""
+This library contains the Tools-class from the original smarthome.py
+
+:Note: These functions **should be concidered deprecated**. New helper-functions are going to be implemented in the utils.lib.
+
+"""
 
 import base64
 import datetime
@@ -100,6 +107,25 @@ class Tools():
         mix = 18.0160 / 28.9660 * rf * sat / (100000 - rf * sat)
         rhov = 100000 / (287.0 * (1 - mix) + 462.0 * mix) / t
         return mix * rhov * 1000
+    
+    def abs2rel(self,t,ah):
+        """
+        Return the relative humidity from the absolute humidity (g/cm3) and temperature (Celsius)
+        
+        :param t: temperature in celsius
+        :type t: float
+        :param ah: absolute humidity (g/cm3)
+        :type t: float
+        
+        :return: val = relative humidity (in percent)
+        :rtype: dict
+        """
+        T=t+273.15
+        ah=ah/1000
+        sat_p=math.exp(77.3450 + 0.0057* T - 7235 / T) / math.pow(T,8.2   )
+        sat_density=0.0022*sat_p/T
+        rel=ah/sat_density*100
+        return rel
 
     def runtime(self):
         return datetime.datetime.now() - self._start

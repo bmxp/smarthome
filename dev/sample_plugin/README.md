@@ -1,65 +1,72 @@
-# My Plugin <- put the name of your plugin here
+# Sample Plugin <- put the name of your plugin here
 
-# Requirements
+#### Version 1.x.y
+
+Describe the purpose of the plugin right here. (What is the plugin good for?)
+
+## Change history
+
+If you want, you can add a change history here:
+
+### Changes Since version 1.x.x
+
+- Fixed this
+
+### Changes Since version 1.x.w
+
+- Added that feature
+
+
+## Requirements
 
 List the requirements of your plugin. Does it need special software or hardware?
 
-## Supported Hardware
+### Needed software
+
+* list
+* the
+* needed
+* software
+
+Including Python modules and SmartHomeNG modules
+
+### Supported Hardware
 
 * list
 * the
 * supported
 * hardware
 
-# Configuration
+## Configuration
 
-## plugin.conf
+### plugin.yaml
 
-Please provide a plugin.conf snippet for your plugin with ever option your plugin supports. Optional attributes should be commented out.
-
-<pre>
-[My]
-   class_name = MyPlugin
-   class_path = plugins.myplugin
-   host = 10.10.10.10
-#   port = 1010
-</pre>
-
-Please provide a description of the attributes.
-This plugin needs an host attribute and you could specify a port attribute which differs from the default '1010'.
-
-## items.conf
-
-List and describe the possible item attributes.
-
-### my_attr
-
-Description of the attribute(s)...
-
-### my_attr2
-
-### Example
-
-Please provide an item configuration with every attribute and usefull settings.
-
-<pre>
-# items/my.conf
-
-[someroom]
-    [[mydevice]]
-        type = bool
-        my_attr = setting
-</pre>
-
-## logic.conf
-If your plugin support item triggers as well, please describe the attributes like the item attributes.
+Please refer to the documentation generated from plugin.yaml metadata.
 
 
-# Methodes
-If your plugin provides methods for logics. List and describe them here...
+### items.yaml
 
-## method1(param1, param2)
-This method enables the logic to send param1 and param2 to the device. You could call it with `sh.my.method1('String', 2)`.
+Please refer to the documentation generated from plugin.yaml metadata.
 
-## method2()
-This method does nothing.
+
+### logic.yaml
+Please refer to the documentation generated from plugin.yaml metadata.
+
+
+## Methods
+Please refer to the documentation generated from plugin.yaml metadata.
+
+
+## Examples
+
+If you have extensive examples, you could describe them here.
+
+
+## Web Interfaces
+
+For building a web interface for a plugin, SmartHomeNG delivers a set of 3rd party components with the HTTP module. 
+For addons, etc. that are delivered with the components, see /modules/http/webif/gstatic folder!
+
+The plugin needs further components, they have to be located in the static folder of the plugin's web interface 
+folder (webif).
+ 
